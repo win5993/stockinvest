@@ -18,7 +18,7 @@ def save_data(df, file):
 
 # 앱 설정
 st.set_page_config(layout="wide", page_title="주식 투자 일지")
-st.title("📈 주식 매매 관리 시스템")
+st.title("📊 주식 매매 관리 시스템")
 
 # --- 2. 사이드바: 고정비(리딩비) 관리 ---
 st.sidebar.header("💰 고정비 관리")
@@ -73,22 +73,23 @@ with st.expander("🛠️ 데이터 수정/삭제 (여기서 지우거나 수정
         st.success("저장되었습니다!")
         st.rerun()
 
-# --- 5. 투자 현황판 (이미지 디자인 완벽 재현) ---
+# --- 5. 투자 현황판 (디자인 재현 및 HTML 오류 수정) ---
 st.subheader("📋 투자 현황판")
 
 if not trades.empty:
-    # 표 상단 스타일 설정
+    # 스타일 및 표 생성 시작
     html_code = """
-    <style>
-        .stock-table { width: 100%; border-collapse: collapse; text-align: center; border: 2px solid #333; }
-        .stock-table th { background-color: #ffffff; border: 1px solid #333; padding: 10px; font-weight: bold; }
-        .stock-table td { border: 1px solid #333; padding: 10px; }
-        .label-cell { background-color: #ffffff; font-weight: bold; }
-    </style>
-    <table class="stock-table">
-        <thead>
+    <div style="overflow-x:auto;">
+    <table style="width:100%; border-collapse:collapse; text-align:center; border:1px solid #444; font-family:sans-serif;">
+        <thead style="background-color:#f8f9fa;">
             <tr>
-                <th>종목명</th><th>매수날짜</th><th>매수량</th><th>매수단가</th><th>총매수금액</th><th>수익금액</th><th>수익률</th>
+                <th style="border:1px solid #444; padding:10px;">종목명</th>
+                <th style="border:1px solid #444; padding:10px;">매수날짜</th>
+                <th style="border:1px solid #444; padding:10px;">매수량</th>
+                <th style="border:1px solid #444; padding:10px;">매수단가</th>
+                <th style="border:1px solid #444; padding:10px;">총매수금액</th>
+                <th style="border:1px solid #444; padding:10px;">수익금액</th>
+                <th style="border:1px solid #444; padding:10px;">수익률</th>
             </tr>
         </thead>
         <tbody>
@@ -108,30 +109,38 @@ if not trades.empty:
             
             p_color = "red" if profit > 0 else ("blue" if profit < 0 else "black")
             
-            # 이미지(image_5db524.png) 디자인: 3단 레이아웃
+            # 3단 구조 레이아웃 (이미지 image_5db524.png 참조)
             html_code += f"""
             <tr>
-                <td rowspan="3"><b>{row['종목명']}</b></td>
-                <td>{row['매수날짜']}</td><td>{b_qty:,.0f}</td><td>{b_prc:,.0f}</td><td>{b_total:,.0f}</td>
-                <td rowspan="3" style="color:{p_color}; font-weight:bold;">{profit:,.0f}</td>
-                <td rowspan="3" style="color:{p_color}; font-weight:bold;">{rate:.1f}%</td>
+                <td rowspan="3" style="border:1px solid #444; font-weight:bold;">{row['종목명']}</td>
+                <td style="border:1px solid #444;">{row['매수날짜']}</td>
+                <td style="border:1px solid #444;">{b_qty:,.0f}</td>
+                <td style="border:1px solid #444;">{b_prc:,.0f}</td>
+                <td style="border:1px solid #444;">{b_total:,.0f}</td>
+                <td rowspan="3" style="border:1px solid #444; color:{p_color}; font-weight:bold;">{profit:,.0f}</td>
+                <td rowspan="3" style="border:1px solid #444; color:{p_color}; font-weight:bold;">{rate:.1f}%</td>
+            </tr>
+            <tr style="background-color:#fafafa;">
+                <td style="border:1px solid #444; font-size:0.9em; font-weight:bold;">매도날짜</td>
+                <td style="border:1px solid #444; font-size:0.9em; font-weight:bold;">매도량</td>
+                <td style="border:1px solid #444; font-size:0.9em; font-weight:bold;">매도단가</td>
+                <td style="border:1px solid #444; font-size:0.9em; font-weight:bold;">총매도금액</td>
             </tr>
             <tr>
-                <td class="label-cell">매도날짜</td><td class="label-cell">매도량</td><td class="label-cell">매도단가</td><td class="label-cell">총매도금액</td>
-            </tr>
-            <tr>
-                <td>{row['매도날짜']}</td><td>{s_qty:,.0f}</td><td>{s_prc:,.0f}</td><td>{s_total:,.0f}</td>
+                <td style="border:1px solid #444;">{row['매도날짜']}</td>
+                <td style="border:1px solid #444;">{s_qty:,.0f}</td>
+                <td style="border:1px solid #444;">{s_prc:,.0f}</td>
+                <td style="border:1px solid #444;">{s_total:,.0f}</td>
             </tr>
             """
         except: continue
             
-    html_code += "</tbody></table>"
+    html_code += "</tbody></table></div>"
     
-    # [핵심] unsafe_allow_html=True 옵션이 반드시 있어야 합니다.
+    # HTML 렌더링 (가장 중요한 부분)
     st.markdown(html_code, unsafe_allow_html=True)
 
 # --- 6. 하단 총 정산 ---
-st.divider()
 total_trade = 0
 if not trades.empty:
     try:
@@ -142,6 +151,7 @@ if not trades.empty:
 total_cost = costs['금액'].sum() if not costs.empty else 0
 net_profit = total_trade + total_cost
 
+st.divider()
 c1, c2, c3 = st.columns(3)
 c1.metric("매매 총수익", f"{total_trade:,.0f}원")
 c2.metric("고정비 합계", f"{total_cost:,.0f}원", delta_color="inverse")
