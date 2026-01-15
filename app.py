@@ -7,98 +7,140 @@ from datetime import datetime
 TRADE_FILE = 'investments.csv'
 COST_FILE = 'fixed_costs.csv'
 
+# 데이터 로드 함수
 def load_data(file, columns):
     if os.path.exists(file):
-        return pd.read_csv(file)
+        try:
+            return pd.read_csv(file)
+        except:
+            return pd.DataFrame(columns=columns)
     return pd.DataFrame(columns=columns)
 
-# 앱 설정
-st.set_page_config(layout="wide", page_title="Stock Journal")
-st.title("📊 프리미엄 투자 관리 대시보드")
+# 데이터 저장 함수
+def save_data(df, file):
+    df.to_csv(file, index=False, encoding='utf-8-sig')
 
-# --- 사이드바: 월간 고정비(리딩비) 관리 ---
-st.sidebar.header("💰 고정비 관리 (리딩비 등)")
-with st.sidebar.form("cost_form", clear_on_submit=True):
-    cost_date = st.date_input("비용 발생일", datetime.now())
-    cost_amount = st.number_input("금액 (마이너스로 입력)", value=-100000, step=10000)
-    cost_memo = st.text_input("항목 (예: 1월 리딩비)")
-    if st.form_submit_button("비용 기록"):
-        costs = load_data(COST_FILE, ['날짜', '금액', '항목'])
-        new_cost = pd.DataFrame([{'날짜': cost_date, '금액': cost_amount, '항목': cost_memo}])
-        pd.concat([costs, new_cost]).to_csv(COST_FILE, index=False, encoding='utf-8-sig')
-        st.success("고정비가 반영되었습니다.")
+st.set_page_config(layout="wide", page_title="Stock Journal Pro")
+st.title("📈 주식 매매 관리 (수정/삭제 기능 추가)")
 
-# --- 메인: 종목 매매 기록 입력 ---
-st.header("📝 종목 매매 기록")
-with st.expander("새로운 매매 기록 추가", expanded=True):
-    with st.form("trade_form", clear_on_submit=True):
-        stock_name = st.text_input("종목명")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("매수 정보")
-            b_date = st.date_input("매수 날짜", datetime.now())
-            b_qty = st.number_input("매수량", min_value=1, step=1)
-            b_price = st.number_input("매수 단가", min_value=0, step=100)
-            
-        with col2:
-            st.subheader("매도 정보")
-            s_date = st.date_input("매도 날짜", datetime.now())
-            s_qty = st.number_input("매도량", min_value=1, step=1)
-            s_price = st.number_input("매도 단가", min_value=0, step=100)
-            
-        if st.form_submit_button("매매 내역 저장"):
-            trades = load_data(TRADE_FILE, ['종목명', '매수날짜', '매수량', '매수단가', '매도날짜', '매도량', '매도단가'])
-            new_trade = pd.DataFrame([{
-                '종목명': stock_name, '매수날짜': b_date, '매수량': b_qty, '매수단가': b_price,
-                '매도날짜': s_date, '매도량': s_qty, '매도단가': s_price
-            }])
-            pd.concat([trades, new_trade]).to_csv(TRADE_FILE, index=False, encoding='utf-8-sig')
+# --- 사이드바: 고정비 관리 ---
+st.sidebar.header("💰 고정비(리딩비) 관리")
+costs = load_data(COST_FILE, ['날짜', '금액', '항목'])
+
+with st.sidebar.expander("비용 추가"):
+    with st.form("cost_form", clear_on_submit=True):
+        c_date = st.date_input("발생일", datetime.now())
+        c_amt = st.number_input("금액 (마이너스 입력)", value=-100000)
+        c_memo = st.text_input("항목명", "월 리딩비")
+        if st.form_submit_button("추가"):
+            new_c = pd.DataFrame([{'날짜': c_date, '금액': c_amt, '항목': c_memo}])
+            costs = pd.concat([costs, new_c], ignore_index=True)
+            save_data(costs, COST_FILE)
             st.rerun()
 
-# --- 데이터 표시 (이미지 레이아웃 구현) ---
-st.header("📈 투자 성과 현황")
+if not costs.empty:
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("고정비 내역 관리")
+    # 고정비 삭제 기능
+    edited_costs = st.sidebar.data_editor(costs, num_rows="dynamic", key="cost_editor")
+    if st.sidebar.button("고정비 변경사항 저장"):
+        save_data(edited_costs, COST_FILE)
+        st.rerun()
 
-trades = load_data(TRADE_FILE, [])
-costs = load_data(COST_FILE, [])
+# --- 메인: 입력 섹션 ---
+trades = load_data(TRADE_FILE, ['종목명','매수날짜','매수량','매수단가','매도날짜','매도량','매도단가'])
 
-if not trades.empty:
-    display_data = []
-    for _, row in trades.iterrows():
-        total_buy = row['매수량'] * row['매수단가']
-        total_sell = row['매도량'] * row['매도단가']
-        profit_amt = total_sell - total_buy
-        profit_rate = (profit_amt / total_buy) * 100 if total_buy != 0 else 0
+with st.expander("➕ 새 매매 기록 추가", expanded=False):
+    with st.form("trade_form", clear_on_submit=True):
+        name = st.text_input("종목명")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**[매수]**")
+            b_date = st.date_input("매수일", datetime.now())
+            b_qty = st.number_input("매수량", min_value=0)
+            b_prc = st.number_input("매수단가", min_value=0)
+        with col2:
+            st.markdown("**[매도]**")
+            s_date = st.date_input("매도일", datetime.now())
+            s_qty = st.number_input("매도량", min_value=0)
+            s_prc = st.number_input("매도단가", min_value=0)
         
-        # 이미지와 동일한 2줄 구조 데이터 생성
-        display_data.append({
-            "종목명": row['종목명'], "구분": "매수", "날짜": row['매수날짜'], 
-            "수량": row['매수량'], "단가": f"{row['매수단가']:,}", 
-            "총금액": f"{total_buy:,}", "수익금액": f"{profit_amt:,}", "수익률": f"{profit_rate:.1f}%"
-        })
-        display_data.append({
-            "종목명": "", "구분": "매도", "날짜": row['매도날짜'], 
-            "수량": row['매도량'], "단가": f"{row['매도단가']:,}", 
-            "총금액": f"{total_sell:,}", "수익금액": "", "수익률": ""
-        })
+        if st.form_submit_button("기록 저장"):
+            new_t = pd.DataFrame([{
+                '종목명': name, '매수날짜': b_date, '매수량': b_qty, '매수단가': b_prc,
+                '매도날짜': s_date, '매도량': s_qty, '매도단가': s_prc
+            }])
+            trades = pd.concat([trades, new_t], ignore_index=True)
+            save_data(trades, TRADE_FILE)
+            st.rerun()
 
-    df_display = pd.DataFrame(display_data)
-    st.table(df_display) # 이미지와 유사한 깔끔한 표 형식
+# --- 데이터 수정 및 삭제 (관리자 모드) ---
+with st.expander("🛠️ 데이터 수정 및 삭제 (여기서 직접 수정 가능)"):
+    st.info("표 안의 내용을 클릭해서 수정하거나, 왼쪽 체크박스를 선택 후 [Delete] 키로 삭제할 수 있습니다.")
+    edited_trades = st.data_editor(trades, num_rows="dynamic", key="trade_editor")
+    if st.button("매매 내역 변경사항 최종 저장"):
+        save_data(edited_trades, TRADE_FILE)
+        st.success("데이터가 업데이트되었습니다!")
+        st.rerun()
 
-# --- 요약 섹션 ---
-st.divider()
-total_trade_profit = 0
+# --- 데이터 표시 (이미지 디자인 구현) ---
+st.subheader("📋 투자 내역 현황 (Dashboard)")
+
 if not trades.empty:
-    total_trade_profit = (trades['매도량']*trades['매도단가']).sum() - (trades['매수량']*trades['매수단가']).sum()
+    html_code = """
+    <style>
+        .stock-table { width: 100%; border-collapse: collapse; text-align: center; }
+        .stock-table th, .stock-table td { border: 1px solid #ddd; padding: 10px; }
+        .stock-table th { background-color: #f2f2f2; font-weight: bold; }
+        .buy-row { background-color: #ffffff; }
+        .sell-row { background-color: #f9f9f9; }
+    </style>
+    <table class="stock-table">
+        <tr>
+            <th>종목명</th><th>구분</th><th>날짜</th><th>수량</th><th>단가</th><th>총금액</th><th>수익금액</th><th>수익률</th>
+        </tr>
+    """
+    
+    for _, row in trades.iterrows():
+        # 데이터가 비어있을 경우 에러 방지
+        try:
+            b_total = float(row['매수량']) * float(row['매수단가'])
+            s_total = float(row['매도량']) * float(row['매도단가'])
+            profit = s_total - b_total
+            rate = (profit / b_total * 100) if b_total > 0 else 0
+            
+            p_color = "red" if profit > 0 else ("blue" if profit < 0 else "black")
+            
+            html_code += f"""
+            <tr class="buy-row">
+                <td rowspan="2"><b>{row['종목명']}</b></td>
+                <td>매수</td><td>{row['매수날짜']}</td><td>{row['매수량']:,}</td><td>{row['매수단가']:,}</td><td>{b_total:,.0f}</td>
+                <td rowspan="2" style="color:{p_color}; font-weight:bold;">{profit:,.0f}</td>
+                <td rowspan="2" style="color:{p_color}; font-weight:bold;">{rate:.1f}%</td>
+            </tr>
+            <tr class="sell-row">
+                <td>매도</td><td>{row['매도날짜']}</td><td>{row['매도량']:,}</td><td>{row['매도단가']:,}</td><td>{s_total:,.0f}</td>
+            </tr>
+            """
+        except:
+            continue
+            
+    html_code += "</table>"
+    st.markdown(html_code, unsafe_allow_html=True)
 
-total_fixed_cost = costs['금액'].sum() if not costs.empty else 0
-net_profit = total_trade_profit + total_fixed_cost
+# --- 하단 정산 ---
+st.divider()
+total_trade = 0
+if not trades.empty:
+    try:
+        total_trade = (trades['매도량'].astype(float)*trades['매도단가'].astype(float)).sum() - \
+                      (trades['매수량'].astype(float)*trades['매수단가'].astype(float)).sum()
+    except: pass
+
+total_cost = costs['금액'].sum() if not costs.empty else 0
+net_profit = total_trade + total_cost
 
 c1, c2, c3 = st.columns(3)
-c1.metric("누적 매매 수익", f"{total_trade_profit:,.0f}원")
-c2.metric("누적 고정비(리딩비)", f"{total_fixed_cost:,.0f}원", delta_color="inverse")
+c1.metric("매매 총수익", f"{total_trade:,.0f}원")
+c2.metric("고정비 합계", f"{total_cost:,.0f}원", delta_color="inverse")
 c3.metric("최종 순수익", f"{net_profit:,.0f}원")
-
-if not costs.empty:
-    with st.expander("고정비 지출 내역 보기"):
-        st.write(costs)
